@@ -9,4 +9,5 @@ node_modules
 
 out/
 dist/
+test-build/
 code.js

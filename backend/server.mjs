@@ -1,7 +1,12 @@
 import http from "node:http";
+import { createHash, timingSafeEqual } from "node:crypto";
 
 const port = Number(process.env.PORT || 8787);
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+const testerCode = process.env.TESTER_CODE || "";
+const rateLimitPerHour = Math.max(1, Number(process.env.RATE_LIMIT_PER_HOUR || 30));
+const maxBodyBytes = 15 * 1024 * 1024;
+const rateBuckets = new Map();
 
 const instructions = `You are the boss in "Your Boss Has Thoughts," a psychologically safe simulation where a designer practices defending and improving design decisions.
 
@@ -74,10 +79,63 @@ function json(res, status, body) {
   res.writeHead(status, {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type",
+    "access-control-allow-headers": "content-type, x-tester-code",
     "access-control-allow-methods": "POST, OPTIONS",
   });
   res.end(JSON.stringify(body));
+}
+
+function sameSecret(received, expected) {
+  const a = Buffer.from(received || "");
+  const b = Buffer.from(expected || "");
+  return a.length === b.length && a.length > 0 && timingSafeEqual(a, b);
+}
+
+function clientAddress(req) {
+  return String(req.headers["x-forwarded-for"] || req.socket.remoteAddress || "unknown")
+    .split(",")[0].trim();
+}
+
+function checkRateLimit(req) {
+  const now = Date.now();
+  const key = createHash("sha256")
+    .update(`${clientAddress(req)}:${req.headers["x-tester-code"] || "local"}`)
+    .digest("hex");
+  const current = rateBuckets.get(key);
+  if (!current || current.resetAt <= now) {
+    rateBuckets.set(key, { count: 1, resetAt: now + 60 * 60 * 1000 });
+    return true;
+  }
+  if (current.count >= rateLimitPerHour) return false;
+  current.count += 1;
+  return true;
+}
+
+async function readJsonBody(req) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > maxBodyBytes) {
+      const error = new Error("The selected frame is too large. Try a smaller frame or export area.");
+      error.status = 413;
+      throw error;
+    }
+    chunks.push(chunk);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+}
+
+function validPayload(payload) {
+  if (!payload || typeof payload !== "object") return false;
+  if (typeof payload.intent !== "string" || payload.intent.length < 1 || payload.intent.length > 2000) return false;
+  if (payload.phase === "start") return typeof payload.imageBase64 === "string" && payload.imageBase64.length > 0;
+  if (payload.phase === "respond") {
+    return payload.session && typeof payload.session === "object" &&
+      typeof payload.designerResponse === "string" && payload.designerResponse.length > 0 && payload.designerResponse.length <= 2000 &&
+      Array.isArray(payload.history) && payload.history.length <= 20;
+  }
+  return false;
 }
 
 function outputText(body) {
@@ -107,6 +165,7 @@ async function createMeetingResponse(payload) {
       text: { format: { type: "json_schema", name: "meeting_turn", strict: true, schema } },
       max_output_tokens: 900,
       store: false,
+      safety_identifier: payload.safetyIdentifier,
     }),
   });
   const body = await response.json();
@@ -118,18 +177,20 @@ async function createMeetingResponse(payload) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return json(res, 204, {});
-  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts" });
+  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", storage: "none" });
   if (req.method !== "POST" || req.url !== "/meeting") return json(res, 404, { error: "Not found" });
   if (!process.env.OPENAI_API_KEY) return json(res, 500, { error: "OPENAI_API_KEY is not configured." });
+  if (testerCode && !sameSecret(req.headers["x-tester-code"], testerCode)) return json(res, 401, { error: "That tester access code is not valid." });
+  if (!checkRateLimit(req)) return json(res, 429, { error: "This test has reached its hourly meeting limit. Try again later." });
   try {
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const payload = JSON.parse(Buffer.concat(chunks).toString("utf8"));
-    if (payload.phase === "start" && (!payload.intent || !payload.imageBase64)) return json(res, 400, { error: "Intent and frame image are required." });
-    if (payload.phase === "respond" && (!payload.session || !payload.designerResponse)) return json(res, 400, { error: "Meeting state and designer response are required." });
+    const payload = await readJsonBody(req);
+    if (!validPayload(payload)) return json(res, 400, { error: "The meeting request is invalid or too long." });
+    payload.safetyIdentifier = createHash("sha256")
+      .update(`${clientAddress(req)}:${req.headers["x-tester-code"] || "local"}`)
+      .digest("hex").slice(0, 64);
     return json(res, 200, await createMeetingResponse(payload));
   } catch (error) {
-    return json(res, 500, { error: error instanceof Error ? error.message : "Unexpected backend error." });
+    return json(res, error?.status || 500, { error: error instanceof Error ? error.message : "Unexpected backend error." });
   }
 });
 

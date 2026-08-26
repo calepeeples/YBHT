@@ -1,0 +1,24 @@
+{
+  "name": "Your Boss Has Thoughts",
+  "description": "Private beta backend for the Your Boss Has Thoughts Figma plugin.",
+  "repository": "https://github.com/calepeeples/YBHT",
+  "keywords": ["figma", "openai", "node"],
+  "env": {
+    "OPENAI_API_KEY": {
+      "description": "OpenAI project API key. Keep this server-side.",
+      "required": true
+    },
+    "TESTER_CODE": {
+      "description": "Shared private-beta access code given to testers.",
+      "required": true
+    },
+    "RATE_LIMIT_PER_HOUR": {
+      "description": "Maximum AI requests per tester/IP each hour.",
+      "value": "30"
+    },
+    "OPENAI_MODEL": {
+      "description": "OpenAI model used for the simulation.",
+      "value": "gpt-4.1-mini"
+    }
+  }
+}

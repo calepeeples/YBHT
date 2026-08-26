@@ -27,6 +27,18 @@ module.exports = tseslint.config(
     },
   },
   {
-    ignores: ['code.js', 'dist', 'eslint.config.js'],
+    files: ['**/*.mjs'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        URL: 'readonly',
+        console: 'readonly',
+        fetch: 'readonly',
+        process: 'readonly',
+      },
+    },
+  },
+  {
+    ignores: ['code.js', 'dist', 'test-build', 'eslint.config.js'],
   },
 )
