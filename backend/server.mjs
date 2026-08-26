@@ -41,7 +41,30 @@ STATE
 - Stakeholder confidence: boss's trust in the designer.
 - Decision quality: whether the product decision is improving.
 - Chaos: likelihood of distraction or organizational randomness.
-- Update state conservatively each turn. Keep claims, evidence, assumptions, open questions, fixations, and decisions compact.`;
+- Update state conservatively each turn. Keep claims, evidence, assumptions, open questions, fixations, and decisions compact.
+
+REPORT
+- Preserve initialState exactly after the first turn so the meeting can show meaningful before-and-after movement.
+- Before the meeting ends, keep every report text field empty.
+- When ended is true, complete the report. SURVIVED means the designer preserved enough trust and momentum to reach a better next decision; it does not mean the original pixels won.
+- Make the final report perceptive, compact, and slightly funny. Credit the boss if the boss contributed a legitimately useful idea. Preserve one unresolved fixation for the closing joke.`;
+
+const stateProperties = {
+  egoMeter: { type: "integer", minimum: 0, maximum: 100 },
+  bullshitDetector: { type: "integer", minimum: 0, maximum: 100 },
+  designIntegrity: { type: "integer", minimum: 0, maximum: 100 },
+  stakeholderConfidence: { type: "integer", minimum: 0, maximum: 100 },
+  decisionQuality: { type: "integer", minimum: 0, maximum: 100 },
+  chaos: { type: "integer", minimum: 0, maximum: 100 },
+  designerClaims: { type: "array", items: { type: "string" }, maxItems: 8 },
+  establishedEvidence: { type: "array", items: { type: "string" }, maxItems: 8 },
+  assumptions: { type: "array", items: { type: "string" }, maxItems: 8 },
+  openQuestions: { type: "array", items: { type: "string" }, maxItems: 8 },
+  bossFixations: { type: "array", items: { type: "string" }, maxItems: 3 },
+  decisions: { type: "array", items: { type: "string" }, maxItems: 8 },
+};
+const stateRequired = ["egoMeter", "bullshitDetector", "designIntegrity", "stakeholderConfidence", "decisionQuality", "chaos", "designerClaims", "establishedEvidence", "assumptions", "openQuestions", "bossFixations", "decisions"];
+const stateSchema = { type: "object", additionalProperties: false, properties: stateProperties, required: stateRequired };
 
 const schema = {
   type: "object",
@@ -52,27 +75,26 @@ const schema = {
     turn: { type: "integer" },
     ended: { type: "boolean" },
     outcome: { type: "string" },
-    state: {
+    initialState: stateSchema,
+    state: stateSchema,
+    report: {
       type: "object",
       additionalProperties: false,
       properties: {
-        egoMeter: { type: "integer", minimum: 0, maximum: 100 },
-        bullshitDetector: { type: "integer", minimum: 0, maximum: 100 },
-        designIntegrity: { type: "integer", minimum: 0, maximum: 100 },
-        stakeholderConfidence: { type: "integer", minimum: 0, maximum: 100 },
-        decisionQuality: { type: "integer", minimum: 0, maximum: 100 },
-        chaos: { type: "integer", minimum: 0, maximum: 100 },
-        designerClaims: { type: "array", items: { type: "string" }, maxItems: 8 },
-        establishedEvidence: { type: "array", items: { type: "string" }, maxItems: 8 },
-        assumptions: { type: "array", items: { type: "string" }, maxItems: 8 },
-        openQuestions: { type: "array", items: { type: "string" }, maxItems: 8 },
-        bossFixations: { type: "array", items: { type: "string" }, maxItems: 3 },
-        decisions: { type: "array", items: { type: "string" }, maxItems: 8 },
+        survived: { type: "boolean" },
+        outcome: { type: "string" },
+        designChanged: { type: "string" },
+        thinkingChanged: { type: "string" },
+        momentumPreserved: { type: "string" },
+        bossContribution: { type: "string" },
+        unresolvedConcern: { type: "string" },
+        summary: { type: "string" },
+        closingLine: { type: "string" },
       },
-      required: ["egoMeter", "bullshitDetector", "designIntegrity", "stakeholderConfidence", "decisionQuality", "chaos", "designerClaims", "establishedEvidence", "assumptions", "openQuestions", "bossFixations", "decisions"],
+      required: ["survived", "outcome", "designChanged", "thinkingChanged", "momentumPreserved", "bossContribution", "unresolvedConcern", "summary", "closingLine"],
     },
   },
-  required: ["bossResponse", "designSummary", "turn", "ended", "outcome", "state"],
+  required: ["bossResponse", "designSummary", "turn", "ended", "outcome", "initialState", "state", "report"],
 };
 
 function json(res, status, body) {
@@ -150,8 +172,8 @@ async function createMeetingResponse(payload) {
   const content = [{
     type: "input_text",
     text: isStart
-      ? `START THE MEETING\nFrame: ${payload.frameName || "Untitled"}\nDesigner intent: ${payload.intent}\nAnalyze the image once, create a compact design summary and initial hidden state, then open with one punchy objection that demands a response.`
-      : `CONTINUE THE MEETING\nDesign intent: ${payload.intent}\nDesign summary: ${payload.session.designSummary}\nCurrent turn: ${payload.session.turn}\nCurrent hidden state: ${JSON.stringify(payload.session.state)}\nRecent dialogue: ${JSON.stringify(payload.history.slice(-8))}\nDesigner response: ${payload.designerResponse}\nUpdate the state and respond in character. Set ended true only if the meeting reaches a decision, genuinely fails, or this is boss turn 8.`,
+      ? `START THE MEETING\nFrame: ${payload.frameName || "Untitled"}\nDesigner intent: ${payload.intent}\nAnalyze the image once, create a compact design summary and hidden state, copy that state exactly into initialState, then open with one punchy objection that demands a response. The report is blank because the meeting has not ended.`
+      : `CONTINUE THE MEETING\nDesign intent: ${payload.intent}\nDesign summary: ${payload.session.designSummary}\nInitial hidden state (preserve exactly): ${JSON.stringify(payload.session.initialState)}\nCurrent turn: ${payload.session.turn}\nCurrent hidden state: ${JSON.stringify(payload.session.state)}\nRecent dialogue: ${JSON.stringify(payload.history.slice(-8))}\nDesigner response: ${payload.designerResponse}\nUpdate the current state and respond in character. Set ended true only if the meeting reaches a decision, genuinely fails, or this is boss turn 8. When ended is true, complete the final report.`,
   }];
   if (isStart) content.push({ type: "input_image", image_url: `data:image/png;base64,${payload.imageBase64}` });
 
