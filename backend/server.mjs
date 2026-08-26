@@ -199,7 +199,7 @@ async function createMeetingResponse(payload) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return json(res, 204, {});
-  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", storage: "none" });
+  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", version: "survived-v1", storage: "none" });
   if (req.method !== "POST" || req.url !== "/meeting") return json(res, 404, { error: "Not found" });
   if (!process.env.OPENAI_API_KEY) return json(res, 500, { error: "OPENAI_API_KEY is not configured." });
   if (testerCode && !sameSecret(req.headers["x-tester-code"], testerCode)) return json(res, 401, { error: "That tester access code is not valid." });
