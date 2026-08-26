@@ -57,6 +57,13 @@ Do not share `.env`, your OpenAI key, the backend source folder, or `node_module
 
 See `TESTING.md` for the suggested private-beta protocol.
 
+## Future features
+
+- Explicitly save a text-only meeting transcript for later review.
+- Save or share the SURVIVED table as a standalone artifact without the frame or full conversation.
+
+See `ROADMAP.md` for the privacy and product constraints around these features.
+
 ## Intentionally absent
 
 - Accounts and payments
