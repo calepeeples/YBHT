@@ -185,7 +185,7 @@ async function createMeetingResponse(payload) {
       instructions,
       input: [{ role: "user", content }],
       text: { format: { type: "json_schema", name: "meeting_turn", strict: true, schema } },
-      max_output_tokens: 900,
+      max_output_tokens: 2200,
       store: false,
       safety_identifier: payload.safetyIdentifier,
     }),
@@ -194,7 +194,14 @@ async function createMeetingResponse(payload) {
   if (!response.ok) throw new Error(body?.error?.message || "AI request failed.");
   const text = outputText(body);
   if (!text) throw new Error(`The boss returned no response (${body.incomplete_details?.reason || body.status || "unknown"}).`);
-  return JSON.parse(text);
+  if (body.status === "incomplete") {
+    throw new Error("The boss got cut off mid-thought. Try that response again.");
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new Error("The boss's response arrived incomplete. Try that response again.");
+  }
 }
 
 const server = http.createServer(async (req, res) => {
