@@ -61,6 +61,7 @@ See `TESTING.md` for the suggested private-beta protocol.
 
 - Explicitly save a text-only meeting transcript for later review.
 - Save or share the SURVIVED table as a standalone artifact without the frame or full conversation.
+- Explore live boss-thinking cues and subtle EgoMeter movement during the meeting without exposing private model reasoning or turning the simulation into a score game.
 
 See `ROADMAP.md` for the privacy and product constraints around these features.
 

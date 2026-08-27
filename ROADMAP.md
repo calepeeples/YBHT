@@ -26,6 +26,18 @@ Product constraints:
 - Explore PNG and Markdown first; consider clipboard and PDF later.
 - Make the artifact understandable without exposing private design work.
 
+### Live meeting telemetry
+
+Make the boss feel present while the meeting is unfolding, with restrained live feedback about how the conversation is moving.
+
+Product ideas:
+
+- Show short boss-thinking cues while a response is being prepared, such as reconsidering, fixating, getting defensive, or noticing a useful concession.
+- Animate EgoMeter movement up or down after each exchange; later consider similarly subtle signals for confidence, bullshit detection, or chaos.
+- Treat these as product-level state cues, not a display of the model's private reasoning.
+- Preserve uncertainty: do not reveal exact scores or enough mechanics for the designer to simply play the meter.
+- Test whether live feedback improves the simulation or distracts the designer from making an honest argument.
+
 ## Still intentionally deferred
 
 - Automatic cloud archives
