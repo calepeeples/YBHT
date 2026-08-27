@@ -45,7 +45,7 @@ figma.ui.onmessage = async (message: AnalyzeMessage | PlaceReportMessage | { typ
       card.resize(message.width * scale, message.height * scale);
       card.name = `Your Boss Has Thoughts — ${message.outcome}`;
       card.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
-      const frame = reviewedFrameId ? await figma.getNodeByIdAsync(reviewedFrameId) : null;
+      const frame = reviewedFrameId ? await figma.getNodeByIdAsync(reviewedFrameId) : selectedFrame();
       if (frame && "x" in frame && "width" in frame && "y" in frame) {
         card.x = frame.x + frame.width + 80;
         card.y = frame.y;
