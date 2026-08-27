@@ -24,7 +24,40 @@ function reportRows(meeting){const first=meeting.initialState,current=meeting.st
 function renderReport(meeting){const report=meeting.report;ended.replaceChildren();const title=document.createElement("h2");title.textContent=report.survived?"SURVIVED":"MEETING LOST";const table=document.createElement("table");for(const[label,value]of reportRows(meeting)){const row=document.createElement("tr"),heading=document.createElement("th"),cell=document.createElement("td");heading.textContent=label;cell.textContent=value;row.append(heading,cell);table.append(row)}const summary=document.createElement("p");summary.className="summary";summary.textContent=report.summary;const closing=document.createElement("p");closing.className="closing";closing.textContent=report.closingLine;const actions=document.createElement("div");actions.className="artifact-actions";const copy=document.createElement("button");copy.className="secondary";copy.textContent="Copy PNG";copy.addEventListener("click",copyReportPng);const place=document.createElement("button");place.textContent="Place in Figma";place.addEventListener("click",placeReportInFigma);actions.append(copy,place);ended.append(title,table,summary,closing,actions);ended.hidden=false}
 function wrapCanvasText(context,text,maxWidth){const words=String(text??"").split(/\s+/),lines=[];let line="";for(const word of words){const test=line?`${line} ${word}`:word;if(context.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test}if(line)lines.push(line);return lines}
 function drawWrapped(context,text,x,y,maxWidth,lineHeight){const lines=wrapCanvasText(context,text,maxWidth);for(const line of lines){context.fillText(line,x,y);y+=lineHeight}return y}
-async function createReportPng(){if(!session||!session.ended)throw new Error("Finish the meeting before saving the report.");const width=1200,padding=84,labelWidth=340,rows=reportRows(session),canvas=document.createElement("canvas"),measure=canvas.getContext("2d");canvas.width=width;measure.font="30px Inter, Arial, sans-serif";let height=390;for(const[,value]of rows)height+=Math.max(68,wrapCanvasText(measure,value,width-padding*2-labelWidth).length*40+28);measure.font="32px Inter, Arial, sans-serif";height+=wrapCanvasText(measure,session.report.summary,width-padding*2).length*46+190;canvas.height=height;const context=canvas.getContext("2d");context.fillStyle="#F4F0E8";context.fillRect(0,0,width,height);context.fillStyle="#171717";context.font="700 24px Inter, Arial, sans-serif";context.fillText("YOUR BOSS HAS THOUGHTS",padding,82);context.font="800 100px Inter, Arial, sans-serif";context.fillText(session.report.survived?"SURVIVED":"MEETING LOST",padding,205);context.font="28px Inter, Arial, sans-serif";context.fillStyle="#66615A";context.fillText("POST-MEETING REPORT",padding,260);let y=330;for(const[label,value]of rows){context.font="700 25px Inter, Arial, sans-serif";context.fillStyle="#171717";const valueLines=wrapCanvasText(context,value,width-padding*2-labelWidth);const rowHeight=Math.max(68,valueLines.length*40+28);context.strokeStyle="#CFC8BD";context.beginPath();context.moveTo(padding,y);context.lineTo(width-padding,y);context.stroke();context.fillText(label,padding,y+43);context.font="30px Inter, Arial, sans-serif";let valueY=y+42;for(const line of valueLines){context.fillText(line,padding+labelWidth,valueY);valueY+=40}y+=rowHeight}context.strokeStyle="#CFC8BD";context.beginPath();context.moveTo(padding,y);context.lineTo(width-padding,y);context.stroke();y+=70;context.font="700 24px Inter, Arial, sans-serif";context.fillStyle="#66615A";context.fillText("WHAT ACTUALLY HAPPENED",padding,y);y+=52;context.font="32px Inter, Arial, sans-serif";context.fillStyle="#171717";y=drawWrapped(context,session.report.summary,padding,y,width-padding*2,46);y+=48;context.font="italic 30px Inter, Arial, sans-serif";context.fillStyle="#66615A";drawWrapped(context,session.report.closingLine,padding,y,width-padding*2,44);const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error("The PNG could not be created.")),"image/png"));return {blob,width,height}}
+async function createReportPng(){
+  if(!session||!session.ended)throw new Error("Finish the meeting before saving the report.");
+  const width=1200,padding=84,labelWidth=340,valueWidth=width-padding*2-labelWidth,rows=reportRows(session),canvas=document.createElement("canvas"),measure=canvas.getContext("2d");
+  canvas.width=width;
+  measure.font="30px Inter, Arial, sans-serif";
+  let height=390;
+  for(const[,value]of rows)height+=Math.max(68,wrapCanvasText(measure,value,valueWidth).length*40+28);
+  measure.font="32px Inter, Arial, sans-serif";
+  height+=wrapCanvasText(measure,session.report.summary,width-padding*2).length*46;
+  measure.font="italic 30px Inter, Arial, sans-serif";
+  height+=wrapCanvasText(measure,session.report.closingLine,width-padding*2).length*44+190;
+  canvas.height=height;
+  const context=canvas.getContext("2d");
+  context.fillStyle="#F4F0E8";context.fillRect(0,0,width,height);
+  context.fillStyle="#171717";context.font="700 24px Inter, Arial, sans-serif";context.fillText("YOUR BOSS HAS THOUGHTS",padding,82);
+  context.font="800 100px Inter, Arial, sans-serif";context.fillText(session.report.survived?"SURVIVED":"MEETING LOST",padding,205);
+  context.font="28px Inter, Arial, sans-serif";context.fillStyle="#66615A";context.fillText("POST-MEETING REPORT",padding,260);
+  let y=330;
+  for(const[label,value]of rows){
+    context.font="30px Inter, Arial, sans-serif";
+    const valueLines=wrapCanvasText(context,value,valueWidth),rowHeight=Math.max(68,valueLines.length*40+28);
+    context.strokeStyle="#CFC8BD";context.beginPath();context.moveTo(padding,y);context.lineTo(width-padding,y);context.stroke();
+    context.font="700 25px Inter, Arial, sans-serif";context.fillStyle="#171717";context.fillText(label,padding,y+43);
+    context.font="30px Inter, Arial, sans-serif";
+    let valueY=y+42;for(const line of valueLines){context.fillText(line,padding+labelWidth,valueY);valueY+=40}
+    y+=rowHeight;
+  }
+  context.strokeStyle="#CFC8BD";context.beginPath();context.moveTo(padding,y);context.lineTo(width-padding,y);context.stroke();
+  y+=70;context.font="700 24px Inter, Arial, sans-serif";context.fillStyle="#66615A";context.fillText("WHAT ACTUALLY HAPPENED",padding,y);
+  y+=52;context.font="32px Inter, Arial, sans-serif";context.fillStyle="#171717";y=drawWrapped(context,session.report.summary,padding,y,width-padding*2,46);
+  y+=48;context.font="italic 30px Inter, Arial, sans-serif";context.fillStyle="#66615A";drawWrapped(context,session.report.closingLine,padding,y,width-padding*2,44);
+  const blob=await new Promise((resolve,reject)=>canvas.toBlob(value=>value?resolve(value):reject(new Error("The PNG could not be created.")),"image/png"));
+  return {blob,width,height};
+}
 async function copyReportPng(){setBusy(true,"Making your PNG…");try{const{blob}=await createReportPng();if(!navigator.clipboard||typeof ClipboardItem==="undefined")throw new Error("Image copy is not available here. Use Place in Figma instead.");await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]);setBusy(false,"PNG copied. Paste it wherever you need it.")}catch(error){showError(error)}}
 async function placeReportInFigma(){setBusy(true,"Placing the report beside your frame…");try{const{blob,width,height}=await createReportPng();const imageBytes=new Uint8Array(await blob.arrayBuffer());parent.postMessage({pluginMessage:{type:"place-report",imageBytes,width,height,outcome:session.report.survived?"SURVIVED":"MEETING LOST"}},"*")}catch(error){showError(error)}}
 function bytesToBase64(bytes){let binary="",chunk=0x8000;for(let i=0;i<bytes.length;i+=chunk)binary+=String.fromCharCode(...bytes.subarray(i,i+chunk));return btoa(binary)}
