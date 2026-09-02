@@ -1,6 +1,7 @@
 import http from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
 import { Pool } from "pg";
+import { normalizeMeetingScores } from "./score-scale.mjs";
 
 const port = Number(process.env.PORT || 8787);
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
@@ -78,9 +79,11 @@ BEHAVIOR
 - When the meeting has produced a clearer decision after 5–8 boss turns, you may end it naturally. Never exceed 8 boss turns.
 
 STATE
+- Every numeric state score uses a 0–100 whole-number scale. Never use a 0–10 scale.
+- Treat 50 as a meaningful middle, not failure. Scores below 20 or above 90 should be rare and require strong evidence from the meeting.
 - Ego meter: boss's need to control or be heard. Higher is harder.
 - Bullshit detector: distance between designer confidence and evidence. Higher is worse.
-- Design integrity: protection of the underlying rationale, not unchanged pixels.
+- Design integrity: protection of the underlying rationale, not unchanged pixels. 90–100 means the rationale was protected and strengthened; 70–89 means it survived with reasonable compromises; 50–69 means it was weakened or remains unsupported; 25–49 means important decisions were conceded without evidence; 0–24 means the direction is mostly arbitrary or political. A justified design change can increase integrity.
 - Stakeholder confidence: boss's trust in the designer.
 - Decision quality: whether the product decision is improving.
 - Chaos: likelihood of distraction or organizational randomness.
@@ -92,13 +95,14 @@ REPORT
 - When ended is true, complete the report. SURVIVED means the designer preserved enough trust and momentum to reach a better next decision; it does not mean the original pixels won.
 - Make the final report perceptive, compact, and slightly funny. Credit the boss if the boss contributed a legitimately useful idea. Preserve one unresolved fixation for the closing joke.`;
 
+const scoreProperty = (description) => ({ type: "integer", minimum: 0, maximum: 100, description: `${description} Use the 0–100 scale, never 0–10.` });
 const stateProperties = {
-  egoMeter: { type: "integer", minimum: 0, maximum: 100 },
-  bullshitDetector: { type: "integer", minimum: 0, maximum: 100 },
-  designIntegrity: { type: "integer", minimum: 0, maximum: 100 },
-  stakeholderConfidence: { type: "integer", minimum: 0, maximum: 100 },
-  decisionQuality: { type: "integer", minimum: 0, maximum: 100 },
-  chaos: { type: "integer", minimum: 0, maximum: 100 },
+  egoMeter: scoreProperty("Boss's need to control or be heard; higher is harder."),
+  bullshitDetector: scoreProperty("Distance between designer confidence and evidence; higher is worse."),
+  designIntegrity: scoreProperty("Protection of the underlying design rationale, not unchanged pixels."),
+  stakeholderConfidence: scoreProperty("Boss's trust in the designer."),
+  decisionQuality: scoreProperty("Whether the product decision is improving."),
+  chaos: scoreProperty("Likelihood of distraction or organizational randomness."),
   designerClaims: { type: "array", items: { type: "string" }, maxItems: 8 },
   establishedEvidence: { type: "array", items: { type: "string" }, maxItems: 8 },
   assumptions: { type: "array", items: { type: "string" }, maxItems: 8 },
@@ -241,7 +245,9 @@ async function createMeetingResponse(payload) {
     throw new Error("The boss got cut off mid-thought. Try that response again.");
   }
   try {
-    return JSON.parse(text);
+    const meeting = JSON.parse(text);
+    if (normalizeMeetingScores(meeting)) void recordMetric("score_scale_normalized");
+    return meeting;
   } catch {
     throw new Error("The boss's response arrived incomplete. Try that response again.");
   }
