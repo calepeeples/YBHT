@@ -1,12 +1,55 @@
 import http from "node:http";
 import { createHash, timingSafeEqual } from "node:crypto";
+import { Pool } from "pg";
 
 const port = Number(process.env.PORT || 8787);
 const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 const testerCode = process.env.TESTER_CODE || "";
+const metricsAdminKey = process.env.METRICS_ADMIN_KEY || "";
 const rateLimitPerHour = Math.max(1, Number(process.env.RATE_LIMIT_PER_HOUR || 30));
 const maxBodyBytes = 15 * 1024 * 1024;
 const rateBuckets = new Map();
+const metricsPool = process.env.DATABASE_URL ? new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_SSL === "false" ? false : { rejectUnauthorized: false },
+  max: 3,
+}) : null;
+const clientMetricEvents = new Set(["report_copied", "report_placed", "review_another"]);
+let metricsReady;
+
+async function prepareMetrics() {
+  if (!metricsPool) return false;
+  if (!metricsReady) metricsReady = metricsPool.query(`
+      CREATE TABLE IF NOT EXISTS daily_metrics (
+        metric_date date NOT NULL,
+        event_name text NOT NULL,
+        event_count bigint NOT NULL DEFAULT 0,
+        value_sum bigint NOT NULL DEFAULT 0,
+        PRIMARY KEY (metric_date, event_name)
+      )
+    `).then(() => metricsPool.query("DELETE FROM daily_metrics WHERE metric_date < CURRENT_DATE - 90"))
+    .then(() => true).catch((error) => {
+    console.error("Aggregate metrics unavailable:", error.message);
+    metricsReady = undefined;
+    return false;
+  });
+  return metricsReady;
+}
+
+async function recordMetric(eventName, value = 0) {
+  if (!await prepareMetrics()) return;
+  try {
+    await metricsPool.query(`
+      INSERT INTO daily_metrics (metric_date, event_name, event_count, value_sum)
+      VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date, $1, 1, $2)
+      ON CONFLICT (metric_date, event_name)
+      DO UPDATE SET event_count = daily_metrics.event_count + 1,
+                    value_sum = daily_metrics.value_sum + EXCLUDED.value_sum
+    `, [eventName, Number.isSafeInteger(value) ? value : 0]);
+  } catch (error) {
+    console.error("Aggregate metric was skipped:", error.message);
+  }
+}
 
 const instructions = `You are the boss in "Your Boss Has Thoughts," a psychologically safe simulation where a designer practices defending and improving design decisions.
 
@@ -101,8 +144,8 @@ function json(res, status, body) {
   res.writeHead(status, {
     "content-type": "application/json",
     "access-control-allow-origin": "*",
-    "access-control-allow-headers": "content-type, x-tester-code",
-    "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-allow-headers": "content-type, x-tester-code, x-metrics-key",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
   });
   res.end(JSON.stringify(body));
 }
@@ -206,19 +249,53 @@ async function createMeetingResponse(payload) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return json(res, 204, {});
-  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", version: "survived-v1", storage: "none" });
+  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", version: "anonymous-metrics-v1", storage: metricsPool ? "daily aggregate counters only" : "none" });
+  if (req.method === "GET" && req.url === "/metrics") {
+    if (!metricsAdminKey || !sameSecret(req.headers["x-metrics-key"], metricsAdminKey)) return json(res, 401, { error: "Not authorized." });
+    if (!await prepareMetrics()) return json(res, 503, { error: "Aggregate metrics are not configured." });
+    try {
+      const result = await metricsPool.query("SELECT metric_date, event_name, event_count, value_sum FROM daily_metrics WHERE metric_date >= CURRENT_DATE - 30 ORDER BY metric_date DESC, event_name");
+      return json(res, 200, { privacy: "Daily aggregate counters only; no event-level or user-level records.", metrics: result.rows });
+    } catch {
+      return json(res, 503, { error: "Aggregate metrics are temporarily unavailable." });
+    }
+  }
+  if (req.method === "POST" && req.url === "/metrics") {
+    if (testerCode && !sameSecret(req.headers["x-tester-code"], testerCode)) return json(res, 401, { error: "That tester access code is not valid." });
+    try {
+      const payload = await readJsonBody(req);
+      if (!clientMetricEvents.has(payload?.event)) return json(res, 400, { error: "Unknown metric." });
+      void recordMetric(payload.event);
+      return json(res, 202, { accepted: true });
+    } catch {
+      return json(res, 400, { error: "Invalid metric." });
+    }
+  }
   if (req.method !== "POST" || req.url !== "/meeting") return json(res, 404, { error: "Not found" });
   if (!process.env.OPENAI_API_KEY) return json(res, 500, { error: "OPENAI_API_KEY is not configured." });
   if (testerCode && !sameSecret(req.headers["x-tester-code"], testerCode)) return json(res, 401, { error: "That tester access code is not valid." });
-  if (!checkRateLimit(req)) return json(res, 429, { error: "This test has reached its hourly meeting limit. Try again later." });
+  if (!checkRateLimit(req)) {
+    void recordMetric("rate_limited");
+    return json(res, 429, { error: "This test has reached its hourly meeting limit. Try again later." });
+  }
   try {
     const payload = await readJsonBody(req);
-    if (!validPayload(payload)) return json(res, 400, { error: "The meeting request is invalid or too long." });
+    if (!validPayload(payload)) {
+      void recordMetric("invalid_request");
+      return json(res, 400, { error: "The meeting request is invalid or too long." });
+    }
+    if (payload.phase === "start") void recordMetric("meeting_started");
     payload.safetyIdentifier = createHash("sha256")
       .update(`${clientAddress(req)}:${req.headers["x-tester-code"] || "local"}`)
       .digest("hex").slice(0, 64);
-    return json(res, 200, await createMeetingResponse(payload));
+    const meeting = await createMeetingResponse(payload);
+    if (meeting.ended) {
+      void recordMetric("meeting_completed", meeting.turn);
+      if (meeting.report?.survived) void recordMetric("meeting_survived");
+    }
+    return json(res, 200, meeting);
   } catch (error) {
+    void recordMetric("meeting_error");
     return json(res, error?.status || 500, { error: error instanceof Error ? error.message : "Unexpected backend error." });
   }
 });

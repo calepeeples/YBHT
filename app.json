@@ -19,6 +19,10 @@
     "OPENAI_MODEL": {
       "description": "OpenAI model used for the simulation.",
       "value": "gpt-4.1-mini"
+    },
+    "METRICS_ADMIN_KEY": {
+      "description": "Private key used only to read anonymous aggregate metrics.",
+      "required": false
     }
   }
 }

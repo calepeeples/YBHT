@@ -12,6 +12,8 @@ Start with 5–10 designers who have presented work to founders, executives, pro
 
 Do not explain EgoMeter, Bullshit Detector, Chaos, or the intended strategy. We want to learn whether the conversation itself makes sense without a product tour.
 
+Tell testers that the beta records anonymous daily usage totals, never individual activity. These counters exclude frames, frame names, design intent, dialogue, reports, access codes, IP addresses, and persistent identifiers.
+
 ## Feedback questions
 
 1. At any point, did the boss feel uncomfortably recognizable? What did it say?
