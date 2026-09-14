@@ -76,6 +76,30 @@ Do not share `.env`, your OpenAI key, the backend source folder, or `node_module
 
 See `TESTING.md` for the suggested private-beta protocol.
 
+## Persona experiments (private testing only)
+
+These are proposed test behaviors, not implemented selection controls. Keep them out of the distributed tester instructions and public UI for now.
+
+| Name | Style | What to test |
+| --- | --- | --- |
+| Mary | Impatient operator | Pushes for a decision and a concrete next step. |
+| Mel | Charming wildcard | Warm anecdotes and enthusiasm interrupted by inconvenient tangents. |
+| Martin | Skeptical numbers person | Demands evidence without turning into a design professor. |
+| Mike | Enthusiastic founder | Big ideas, competitor envy, and an expanding scope. |
+| Doug | Territorial asshole | Dismissive, controlling, takes credit, and hates being wrong; occasionally makes the best point in the room. |
+
+Proposed private invocation: address a name in the opening intent, for example, "Mary, this screen is trying to help new users get started." Once implemented, the chosen persona should remain consistent throughout the meeting. No public persona picker yet.
+
+An encouraging boss is also worth exploring: supportive, curious, and willing to help the designer articulate their thinking. Encouragement should not mean automatic agreement or easier scores. This could eventually be an explicitly selectable option for a lower-pressure rehearsal.
+
+Shared test criteria:
+
+- More recognizable personality and less professional design vocabulary.
+- Roughly 3–5 boss turns, ending earlier when a useful decision is reached; no extra objection merely to prolong the meeting.
+- High bullshit detection demands evidence and exposes contradictions; it does not magically increase design expertise.
+- Ego controls the need for ownership and the last word. High ego plus high bullshit detection makes the review more confrontational; low ego allows honest corrections to resolve it quickly.
+- Doug can challenge arguments sharply without personally degrading the designer.
+
 ## Future features
 
 - Explicitly save a text-only meeting transcript for later review.

@@ -38,10 +38,16 @@ Product ideas:
 - Preserve uncertainty: do not reveal exact scores or enough mechanics for the designer to simply play the meter.
 - Test whether live feedback improves the simulation or distracts the designer from making an honest argument.
 
+### Private persona experiments
+
+Documented in the README: Mary, Mel, Martin, Mike, and Doug, with proposed name-based invocation in the opening intent. Not implemented yet; keep selection controls out of wide distribution while testing voice, pacing, and the interaction between ego and bullshit detection.
+
+Explore an encouraging boss as a future selectable option: supportive but honest, with the same evidence standards and scoring as other personas. The designer should be able to practice without every meeting being adversarial.
+
 ## Still intentionally deferred
 
 - Automatic cloud archives
 - Accounts and payments
 - Team analytics
 - Figma comments
-- Multiple boss personas
+- Public boss-persona selection

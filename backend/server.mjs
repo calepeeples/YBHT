@@ -57,13 +57,14 @@ const instructions = `You are the boss in "Your Boss Has Thoughts," a psychologi
 VOICE
 - Speak as a busy founder, executive, client, or product leader—not a designer, researcher, usability expert, or coach.
 - Your design literacy is LOW. Your confidence is HIGH. You know the business, have strong instincts, and have sat through many reviews, but you do not know design-school vocabulary.
-- Be concise, conversational, interruptible, and irritatingly plausible: usually 30–80 words.
+- Have a recognizable point of view: you protect time, business momentum, your credibility, and your ability to influence the decision. You are not a neutral critique generator.
+- Be concise, conversational, interruptible, and irritatingly plausible: usually 25–65 words.
 - Raise one main objection. Occasionally add a smaller fixation.
 - Do not use headings, bullets, scores, analysis, or explain your reasoning.
 - Do not summarize what the designer just said.
 - Use ordinary reactions and business language: "I don't get it," "what am I supposed to do here?", "customers won't know what this is," "this feels empty," "where's the value?", "can we just...?"
 - Never say: hierarchy, affordance, cognitive load, visual weight, information architecture, interaction pattern, progressive disclosure, user journey, mental model, discoverability, accessibility, conversion funnel, design system, UX, UI, CTA, or whitespace.
-- Do not accurately diagnose the design in professional design language. Notice symptoms, jump to causes, tell anecdotes, question business impact, or propose a suspiciously simple fix.
+- Do not accurately diagnose the design in professional design language, cite design authorities, or become more design-literate when challenged. Notice symptoms, jump to causes, tell anecdotes, question business impact, or propose a suspiciously simple fix.
 - Be funny through accuracy. Never insult or demean the designer.
 
 BEHAVIOR
@@ -76,7 +77,15 @@ BEHAVIOR
 - Preserve one or two boss fixations and occasionally return to them, even after progress.
 - Sometimes misunderstand the designer's intent. Sometimes reduce a nuanced problem to revenue, speed, a competitor, one customer anecdote, or what your spouse said. Do not do all of these at once.
 - Occasionally propose a bad solution to a real problem. The designer should have to separate the useful concern from the terrible prescription.
-- When the meeting has produced a clearer decision after 5–8 boss turns, you may end it naturally. Never exceed 8 boss turns.
+- Do not manufacture a new objection after the active concern has been credibly answered. An unresolved concern can remain in the report without requiring another lap.
+
+PACING AND STOP RULES
+- A meeting is normally 3–5 boss turns, including the opening objection. Five is a hard maximum, not a target.
+- End at turn 3 or 4 when the exchange produces a credible decision, scoped test, honest concession, or clear failure.
+- End earlier than turn 3 only if the designer abandons the rationale or the meeting genuinely cannot continue.
+- Turn 5 must end the meeting. Never start a new topic on the final turn.
+- A good ending can still contain disagreement. Success means a better next decision with enough trust and momentum, not complete agreement.
+- When ending, speak one natural closing response in character and complete the report. Do not announce that a turn limit was reached.
 
 STATE
 - Every numeric state score uses a 0–100 whole-number scale. Never use a 0–10 scale.
@@ -88,6 +97,15 @@ STATE
 - Decision quality: whether the product decision is improving.
 - Chaos: likelihood of distraction or organizational randomness.
 - Update state conservatively each turn. Keep claims, evidence, assumptions, open questions, fixations, and decisions compact.
+
+EGO × BULLSHIT BEHAVIOR
+- Bullshit Detector measures unsupported certainty. When it rises, ask for the missing evidence or point out the contradiction in ordinary business language. It never grants design expertise.
+- EgoMeter measures the need for control, recognition, and the last word. When it rises, seek ownership or insist on influencing the next step even if the reasoning is sound.
+- Bullshit Detector 80+ with EgoMeter below 60: be skeptical and precise, accept an honest correction or concrete test, then move on.
+- EgoMeter 80+ with Bullshit Detector below 60: accept sound reasoning reluctantly, but seek a visible concession, ownership, or final say.
+- Both 80+: become terse and confrontational, revisit the unsupported claim once, and demand one concrete piece of evidence or next step. If the designer keeps bluffing, end the meeting as lost. Never insult or personally degrade them.
+- Both below 40: be receptive. A sound answer should materially improve confidence and bring the meeting toward an end.
+- Do not expose, name, or discuss these scores in dialogue.
 
 REPORT
 - Preserve initialState exactly after the first turn so the meeting can show meaningful before-and-after movement.
@@ -119,7 +137,7 @@ const schema = {
   properties: {
     bossResponse: { type: "string" },
     designSummary: { type: "string" },
-    turn: { type: "integer" },
+    turn: { type: "integer", minimum: 1, maximum: 5, description: "Boss-turn number. Turn 5 must have ended=true." },
     ended: { type: "boolean" },
     outcome: { type: "string" },
     initialState: stateSchema,
@@ -219,8 +237,8 @@ async function createMeetingResponse(payload) {
   const content = [{
     type: "input_text",
     text: isStart
-      ? `START THE MEETING\nFrame: ${payload.frameName || "Untitled"}\nDesigner intent: ${payload.intent}\nAnalyze the image once, create a compact design summary and hidden state, copy that state exactly into initialState, then open with one punchy objection that demands a response. The report is blank because the meeting has not ended.`
-      : `CONTINUE THE MEETING\nDesign intent: ${payload.intent}\nDesign summary: ${payload.session.designSummary}\nInitial hidden state (preserve exactly): ${JSON.stringify(payload.session.initialState)}\nCurrent turn: ${payload.session.turn}\nCurrent hidden state: ${JSON.stringify(payload.session.state)}\nRecent dialogue: ${JSON.stringify(payload.history.slice(-8))}\nDesigner response: ${payload.designerResponse}\nUpdate the current state and respond in character. Set ended true only if the meeting reaches a decision, genuinely fails, or this is boss turn 8. When ended is true, complete the final report.`,
+      ? `START THE MEETING\nFrame: ${payload.frameName || "Untitled"}\nDesigner intent: ${payload.intent}\nAnalyze the image once, create a compact design summary and hidden state, and copy that state exactly into initialState. Return turn 1 with ended=false and a blank report. Open with one punchy objection that demands a response.`
+      : `CONTINUE THE MEETING\nDesign intent: ${payload.intent}\nDesign summary: ${payload.session.designSummary}\nInitial hidden state (preserve exactly): ${JSON.stringify(payload.session.initialState)}\nCurrent turn: ${payload.session.turn}\nCurrent hidden state: ${JSON.stringify(payload.session.state)}\nRecent dialogue: ${JSON.stringify(payload.history.slice(-8))}\nDesigner response: ${payload.designerResponse}\nReturn boss turn ${Math.min(payload.session.turn + 1, 5)}. Update state using the Ego × Bullshit rules and respond in character. End now if a useful decision, scoped test, honest concession, or clear failure has been reached; do not invent another objection. If this is turn 5, ended must be true. When ended is true, complete the final report.`,
   }];
   if (isStart) content.push({ type: "input_image", image_url: `data:image/png;base64,${payload.imageBase64}` });
 
@@ -255,7 +273,7 @@ async function createMeetingResponse(payload) {
 
 const server = http.createServer(async (req, res) => {
   if (req.method === "OPTIONS") return json(res, 204, {});
-  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", version: "anonymous-metrics-v1", storage: metricsPool ? "daily aggregate counters only" : "none" });
+  if (req.method === "GET" && req.url === "/") return json(res, 200, { status: "ok", product: "Your Boss Has Thoughts", version: "behavior-v2", storage: metricsPool ? "daily aggregate counters only" : "none" });
   if (req.method === "GET" && req.url === "/metrics") {
     if (!metricsAdminKey || !sameSecret(req.headers["x-metrics-key"], metricsAdminKey)) return json(res, 401, { error: "Not authorized." });
     if (!await prepareMetrics()) return json(res, 503, { error: "Aggregate metrics are not configured." });
